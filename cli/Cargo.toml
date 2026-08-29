@@ -1,0 +1,13 @@
+[package]
+name = "plainix-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Scaffold reproducible Nix development environments"
+license = "MIT"
+repository = "https://github.com/yawarakatai/plainix"
+
+[[bin]]
+name = "plainix"
+path = "src/main.rs"
+
+[dependencies]
