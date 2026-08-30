@@ -32,6 +32,11 @@
         "systems"
       ] importedSpec;
 
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "aarch64-darwin"
+      ];
       rawSystems = spec.systems or [ "x86_64-linux" ];
       systems =
         if !builtins.isList rawSystems then
@@ -43,7 +48,13 @@
         else if lib.length (lib.unique rawSystems) != lib.length rawSystems then
           throw "Plainix: `systems` must not contain duplicates"
         else
-          rawSystems;
+          let
+            unsupported = builtins.filter (system: !(builtins.elem system supportedSystems)) rawSystems;
+          in
+          if unsupported == [ ] then
+            rawSystems
+          else
+            throw "Plainix: unsupported system(s): ${join unsupported}; supported systems: ${join supportedSystems}";
 
       forSystems = lib.genAttrs systems;
 
@@ -69,10 +80,16 @@
 
       validatePackages =
         value:
-        if builtins.isList value then
-          value
+        if !builtins.isList value then
+          throw "Plainix: `develop.packages` must evaluate to a list, but got ${typeOf value}"
         else
-          throw "Plainix: `develop.packages` must evaluate to a list, but got ${typeOf value}";
+          lib.imap0 (
+            index: package:
+            if builtins.isString package || lib.isDerivation package then
+              package
+            else
+              throw "Plainix: `develop.packages[${toString index}]` must be a package name or package, but got ${typeOf package}"
+          ) value;
 
       validateEnv =
         value:

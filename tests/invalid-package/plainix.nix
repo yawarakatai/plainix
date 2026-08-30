@@ -1,0 +1,3 @@
+{
+  develop.packages = [ 42 ];
+}

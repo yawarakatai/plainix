@@ -31,8 +31,8 @@ systems = [
 ];
 ```
 
-When omitted, it defaults to `x86_64-linux`. A system must be available from
-the selected nixpkgs revision.
+Only these three systems are supported. When omitted, the list defaults to
+`x86_64-linux`.
 
 ## `develop.packages`
 
@@ -46,7 +46,8 @@ develop.packages = [
 ];
 ```
 
-Strings are resolved as nixpkgs attribute paths, including dotted names.
+Strings are resolved as nixpkgs attribute paths, including dotted names. Each
+entry must be a package name or a package returned by `nix.package`.
 
 ## `develop.env`
 

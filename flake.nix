@@ -13,9 +13,11 @@
       ];
       forSystems = nixpkgs.lib.genAttrs systems;
       packageFor = system: self.packages.${system}.plainix;
+      plainixLib = import ./lib;
+      development = plainixLib.project { inherit nixpkgs; } ./plainix.nix;
     in
     {
-      lib = import ./lib;
+      lib = plainixLib;
 
       packages = forSystems (
         system:
@@ -59,26 +61,7 @@
         default = self.apps.${system}.plainix;
       });
 
-      devShells = forSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-        in
-        {
-          default = pkgs.mkShell {
-            packages = [
-              pkgs.cargo
-              pkgs.clippy
-              pkgs.nixfmt-tree
-              pkgs.rust-analyzer
-              pkgs.rustc
-              pkgs.rustfmt
-            ];
-          };
-        }
-      );
-
-      formatter = forSystems (system: nixpkgs.legacyPackages.${system}.nixfmt-tree);
+      devShells = development.devShells;
 
       checks = forSystems (
         system:
@@ -86,9 +69,17 @@
           pkgs = nixpkgs.legacyPackages.${system};
           minimal = self.lib.project { inherit nixpkgs; } ./tests/minimal/plainix.nix;
           presets = self.lib.project { inherit nixpkgs; } ./tests/presets/plainix.nix;
-          invalid = builtins.tryEval (
-            builtins.deepSeq (self.lib.project { inherit nixpkgs; } ./tests/invalid/plainix.nix) true
-          );
+          invalidProjects =
+            map
+              (
+                projectFile:
+                builtins.tryEval (builtins.deepSeq (self.lib.project { inherit nixpkgs; } projectFile) true)
+              )
+              [
+                ./tests/invalid/plainix.nix
+                ./tests/invalid-package/plainix.nix
+                ./tests/invalid-system/plainix.nix
+              ];
           examples = map (projectFile: self.lib.project { inherit nixpkgs; } projectFile) [
             ./examples/minimal/plainix.nix
             ./examples/rust/plainix.nix
@@ -102,7 +93,7 @@
             assert builtins.isString minimal.devShells.${system}.default.drvPath;
             assert minimal.devShells.${system}.default.RUST_BACKTRACE == "1";
             assert builtins.isString presets.devShells.${system}.default.drvPath;
-            assert !invalid.success;
+            assert builtins.all (result: !result.success) invalidProjects;
             assert builtins.all (
               example: builtins.isString example.devShells.${system}.default.drvPath
             ) examples;
