@@ -36,27 +36,42 @@ their contents. Review the files and run the printed `git add` command before
 committing them.
 
 After initialization, `nix develop` is the only command needed; the Plainix CLI
-is no longer required. If no automatic preset matches, Plainix starts with an
-empty package list ready to customize.
+is no longer required. Select no tools to start with an empty package list ready
+to customize.
 
 Plainix never runs `direnv allow` or overwrites an existing `.envrc`. If you use
 direnv, review the generated files before allowing them.
 
-## Automatic presets
+## Choose project tools
 
-Presets are an onboarding convenience, not a limit on what Plainix can manage.
-Plainix combines them when a repository contains multiple languages.
+`plainix init` opens a searchable selection where Space selects any combination
+of tools and Enter continues. Presets are an onboarding convenience, not a
+limit on what Plainix can manage. They are expanded into an ordinary package
+list in `plainix.nix`.
 
-| Preset | Detected from | Initial tools |
+For scripts or non-interactive use, repeat `--with` or explicitly select an
+empty environment:
+
+```console
+nix run github:yawarakatai/plainix -- init --with godot --with blender
+nix run github:yawarakatai/plainix -- init --empty
+```
+
+| Tool | `--with` name | Initial packages |
 | --- | --- | --- |
-| Rust | `Cargo.toml` | Cargo, Clippy, rust-analyzer, rustc, rustfmt |
-| Python | `pyproject.toml` | Python, Ruff, uv |
-| TypeScript | `package.json`, `tsconfig.json` | Node.js, TypeScript, language server |
-| Go | `go.mod` | Go, gopls |
-| Zig | `build.zig`, `build.zig.zon`, top-level `.zig` | Zig, ZLS |
-| C/C++ | CMake, Meson, top-level C/C++ source | compiler, CMake, Make, Ninja, pkg-config |
+| Blender | `blender` | Blender |
+| C/C++ | `cpp` | compiler, CMake, Make, Ninja, pkg-config |
+| FreeCAD | `freecad` | FreeCAD |
+| Go | `go` | Go, gopls |
+| Godot | `godot` | Godot 4 |
+| KiCad | `kicad` | KiCad |
+| Python | `python` | Python, Ruff, uv |
+| Rust | `rust` | Cargo, Clippy, rust-analyzer, rustc, rustfmt |
+| TypeScript | `typescript` | Node.js, TypeScript, language server |
+| Zig | `zig` | Zig, ZLS |
 
 Supported platforms are `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin`.
+FreeCAD is currently offered on Linux only.
 
 ## Customize the environment
 
