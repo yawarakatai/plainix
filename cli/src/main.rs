@@ -5,7 +5,7 @@ mod preset;
 use generate::{EnvrcResult, InitOptions};
 use std::process::ExitCode;
 
-const USAGE: &str = "Plainix scaffolds reproducible Nix development environments.\n\nUsage:\n  plainix init [--direnv]\n  plainix --help\n  plainix --version\n\nOptions:\n  --direnv   Generate .envrc for nix-direnv (never runs direnv allow)\n";
+const USAGE: &str = "Plainix scaffolds reproducible project environments with Nix.\n\nUsage:\n  plainix init [--direnv]\n  plainix --help\n  plainix --version\n\nOptions:\n  --direnv   Generate .envrc for nix-direnv (never runs direnv allow)\n";
 
 enum Action {
     Init(InitOptions),
@@ -45,8 +45,8 @@ fn run() -> Result<(), String> {
             let directory = std::env::current_dir()
                 .map_err(|error| format!("Plainix: could not read current directory: {error}"))?;
             let result = generate::initialize(&directory, options)?;
-            let detected = if result.projects.is_empty() {
-                "Generic project".to_owned()
+            let presets = if result.projects.is_empty() {
+                "none".to_owned()
             } else {
                 result
                     .projects
@@ -55,10 +55,15 @@ fn run() -> Result<(), String> {
                     .collect::<Vec<_>>()
                     .join(", ")
             };
+            let packages = if result.packages.is_empty() {
+                "none".to_owned()
+            } else {
+                result.packages.join(", ")
+            };
 
-            println!("Detected: {detected}");
+            println!("Presets: {presets}");
             println!("Platform: {}", result.system);
-            println!("Packages: {}", result.packages.join(", "));
+            println!("Packages: {packages}");
             println!();
             println!("Created plainix.nix");
             println!("Created flake.nix");

@@ -1,5 +1,5 @@
 {
-  description = "Advanced C development environment with Plainix";
+  description = "SQLite C project environment with Plainix";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.plainix = {

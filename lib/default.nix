@@ -28,7 +28,9 @@
             throw "Plainix: `${label}` contains unknown field(s): ${join unknown}";
 
       spec = validateAttrs "plainix.nix" [
-        "develop"
+        "env"
+        "packages"
+        "shellHook"
         "systems"
       ] importedSpec;
 
@@ -58,12 +60,6 @@
 
       forSystems = lib.genAttrs systems;
 
-      rawDevelop = validateAttrs "develop" [
-        "env"
-        "packages"
-        "shellHook"
-      ] (spec.develop or { });
-
       getPath =
         label: attrs: path:
         lib.attrByPath (lib.splitString "." path) (throw "Plainix: ${label} `${path}` does not exist")
@@ -81,20 +77,20 @@
       validatePackages =
         value:
         if !builtins.isList value then
-          throw "Plainix: `develop.packages` must evaluate to a list, but got ${typeOf value}"
+          throw "Plainix: `packages` must evaluate to a list, but got ${typeOf value}"
         else
           lib.imap0 (
             index: package:
             if builtins.isString package || lib.isDerivation package then
               package
             else
-              throw "Plainix: `develop.packages[${toString index}]` must be a package name or package, but got ${typeOf package}"
+              throw "Plainix: `packages[${toString index}]` must be a package name or package, but got ${typeOf package}"
           ) value;
 
       validateEnv =
         value:
         if !builtins.isAttrs value then
-          throw "Plainix: `develop.env` must evaluate to an attribute set, but got ${typeOf value}"
+          throw "Plainix: `env` must evaluate to an attribute set, but got ${typeOf value}"
         else
           lib.mapAttrs (
             name: envValue:
@@ -106,7 +102,7 @@
             then
               envValue
             else
-              throw "Plainix: `develop.env.${name}` must be a string, boolean, integer, or package, but got ${typeOf envValue}"
+              throw "Plainix: `env.${name}` must be a string, boolean, integer, or package, but got ${typeOf envValue}"
           ) value;
 
       validateString =
@@ -129,9 +125,9 @@
         in
         {
           inherit pkgs;
-          packages = resolvePackages (validatePackages (evaluate context (rawDevelop.packages or [ ])));
-          env = validateEnv (evaluate context (rawDevelop.env or { }));
-          shellHook = validateString "develop.shellHook" (evaluate context (rawDevelop.shellHook or ""));
+          packages = resolvePackages (validatePackages (evaluate context (spec.packages or [ ])));
+          env = validateEnv (evaluate context (spec.env or { }));
+          shellHook = validateString "shellHook" (evaluate context (spec.shellHook or ""));
         };
 
       mkDevShell =

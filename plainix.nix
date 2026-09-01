@@ -5,7 +5,7 @@
     "aarch64-darwin"
   ];
 
-  develop.packages = [
+  packages = [
     "cargo"
     "clippy"
     "nixfmt-tree"

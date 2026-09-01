@@ -5,8 +5,5 @@
     "aarch64-darwin"
   ];
 
-  develop.packages = [
-    "git"
-    "ripgrep"
-  ];
+  packages = [ ];
 }

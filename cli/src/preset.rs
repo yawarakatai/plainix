@@ -3,10 +3,6 @@ use crate::detect::ProjectKind;
 pub fn packages_for(kinds: &[ProjectKind]) -> Vec<&'static str> {
     let mut packages = Vec::new();
 
-    if kinds.is_empty() {
-        packages.push("git");
-    }
-
     for kind in kinds {
         let preset: &[&str] = match kind {
             ProjectKind::Rust => &["cargo", "clippy", "rust-analyzer", "rustc", "rustfmt"],
@@ -50,7 +46,7 @@ mod tests {
     }
 
     #[test]
-    fn generic_project_gets_git() {
-        assert_eq!(packages_for(&[]), vec!["git"]);
+    fn project_without_presets_gets_no_packages() {
+        assert!(packages_for(&[]).is_empty());
     }
 }

@@ -2,7 +2,7 @@
 name = "plainix-cli"
 version = "0.1.0"
 edition = "2024"
-description = "Scaffold reproducible Nix development environments"
+description = "Scaffold reproducible project environments with Nix"
 license = "MIT"
 repository = "https://github.com/yawarakatai/plainix"
 

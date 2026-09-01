@@ -1,3 +1,3 @@
 {
-  develop.packages = [ 42 ];
+  packages = [ 42 ];
 }

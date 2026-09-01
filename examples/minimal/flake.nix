@@ -1,5 +1,5 @@
 {
-  description = "Minimal Plainix development environment";
+  description = "Empty project environment with Plainix";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.plainix = {

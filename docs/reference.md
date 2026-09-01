@@ -1,27 +1,24 @@
 # Configuration reference
 
-`plainix.nix` describes a development shell. Most projects only need
-`systems` and `develop.packages`.
+`plainix.nix` describes the tools and environment shared by a project. Most
+projects only need `systems` and `packages`.
 
 ## Complete shape
 
 ```nix
 {
   systems = [ "x86_64-linux" ];
-
-  develop = {
-    packages = [ "git" ];
-    env.EXAMPLE = "value";
-    shellHook = "echo ready";
-  };
+  packages = [ "git" ];
+  env.EXAMPLE = "value";
+  shellHook = "echo ready";
 }
 ```
 
-Unknown fields are errors.
+All fields are optional. Unknown fields are errors.
 
 ## `systems`
 
-A non-empty list of Nix system names. Duplicate values are rejected.
+A non-empty list of supported system names. Duplicate values are rejected.
 
 ```nix
 systems = [
@@ -34,12 +31,12 @@ systems = [
 Only these three systems are supported. When omitted, the list defaults to
 `x86_64-linux`.
 
-## `develop.packages`
+## `packages`
 
-Packages placed on `PATH` inside `nix develop`.
+Packages placed on `PATH` inside the project environment.
 
 ```nix
-develop.packages = [
+packages = [
   "git"
   "python3"
   "python3Packages.pytest"
@@ -47,30 +44,37 @@ develop.packages = [
 ```
 
 Strings are resolved as nixpkgs attribute paths, including dotted names. Each
-entry must be a package name or a package returned by `nix.package`.
+entry must be a package name or a package returned by `nix.package`. Search for
+package names at [search.nixos.org/packages](https://search.nixos.org/packages?channel=unstable).
 
-## `develop.env`
-
-Environment variables available in the shell.
+An empty list is valid:
 
 ```nix
-develop.env = {
+packages = [ ];
+```
+
+## `env`
+
+Environment variables available after entering the environment.
+
+```nix
+env = {
   RUST_BACKTRACE = "1";
-  APP_ENV = "development";
+  PROJECT_ASSETS = "./assets";
 };
 ```
 
 Values may be strings, booleans, integers, or Nix packages. They are passed via
 the structured `env` argument to `pkgs.mkShell`, so they cannot silently replace
-Plainix's `packages` or `shellHook` settings.
+Plainix's package list or shell hook.
 
-## `develop.shellHook`
+## `shellHook`
 
 Shell code run when entering the environment.
 
 ```nix
-develop.shellHook = ''
-  echo "Development environment ready"
+shellHook = ''
+  echo "Project environment ready"
 '';
 ```
 
@@ -78,12 +82,12 @@ Review a repository's shell hook before running `nix develop` or `direnv allow`.
 
 ## System-specific values
 
-The three `develop` fields may be functions. A function receives helpers for
-resolving a package or constructing a library path:
+`packages`, `env`, and `shellHook` may be functions. A function receives helpers
+for resolving a package or constructing a library path:
 
 ```nix
 {
-  develop.env = nix: {
+  env = nix: {
     SQLITE_INCLUDE_DIR = "${nix.package "sqlite.dev"}/include";
     SQLITE_LIBRARY_PATH = nix.libraryPath [ "sqlite" ];
   };
@@ -116,4 +120,5 @@ Plainix generates this file so standard Nix commands can read `plainix.nix`:
 }
 ```
 
-Most users do not need to edit `flake.nix`.
+`flake.lock` pins the exact nixpkgs revision. Most users do not need to edit
+`flake.nix`.

@@ -1,5 +1,5 @@
 {
-  description = "Rust development environment with Plainix";
+  description = "Rust project environment with Plainix";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.plainix = {

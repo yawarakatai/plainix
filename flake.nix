@@ -1,5 +1,5 @@
 {
-  description = "Plainix - start a reproducible Nix development environment without learning flakes first";
+  description = "Plainix - share a reproducible project environment without learning flakes first";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -14,7 +14,7 @@
       forSystems = nixpkgs.lib.genAttrs systems;
       packageFor = system: self.packages.${system}.plainix;
       plainixLib = import ./lib;
-      development = plainixLib.project { inherit nixpkgs; } ./plainix.nix;
+      environment = plainixLib.project { inherit nixpkgs; } ./plainix.nix;
     in
     {
       lib = plainixLib;
@@ -39,7 +39,7 @@
             cargoLock.lockFile = ./Cargo.lock;
 
             meta = {
-              description = "Scaffold reproducible Nix development environments";
+              description = "Scaffold reproducible project environments with Nix";
               homepage = "https://github.com/yawarakatai/plainix";
               license = pkgs.lib.licenses.mit;
               mainProgram = "plainix";
@@ -56,12 +56,12 @@
         plainix = {
           type = "app";
           program = "${packageFor system}/bin/plainix";
-          meta.description = "Initialize a Plainix development environment";
+          meta.description = "Initialize a Plainix project environment";
         };
         default = self.apps.${system}.plainix;
       });
 
-      devShells = development.devShells;
+      devShells = environment.devShells;
 
       checks = forSystems (
         system:
