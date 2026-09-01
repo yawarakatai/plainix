@@ -20,23 +20,27 @@ From any project directory, including an empty one:
 ```console
 cd your-project
 nix run github:yawarakatai/plainix -- init
-git add plainix.nix flake.nix flake.lock
 nix develop
 ```
 
-Outside a Git repository, omit the `git add` command. Plainix creates:
+Plainix creates:
 
 - `plainix.nix` — the shared tools and environment
 - `flake.nix` — compatibility with standard Nix commands
 - `flake.lock` — pinned versions for reproducibility
+- `.envrc` — optional automatic activation with direnv and nix-direnv
+
+Inside a Git repository, Plainix also adds `.direnv/` to `.gitignore` and marks
+the generated files as intent-to-add. This lets Nix see them without staging
+their contents. Review the files and run the printed `git add` command before
+committing them.
 
 After initialization, `nix develop` is the only command needed; the Plainix CLI
 is no longer required. If no automatic preset matches, Plainix starts with an
 empty package list ready to customize.
 
-For direnv integration, initialize with
-`nix run github:yawarakatai/plainix -- init --direnv`, then run `direnv allow`.
-Plainix never runs `direnv allow` or overwrites an existing `.envrc`.
+Plainix never runs `direnv allow` or overwrites an existing `.envrc`. If you use
+direnv, review the generated files before allowing them.
 
 ## Automatic presets
 

@@ -9,34 +9,50 @@ const NIXPKGS_INPUT: &str = "github:NixOS/nixpkgs/nixos-unstable";
 const PLAINIX_INPUT: &str = "github:yawarakatai/plainix";
 const PACKAGE_SEARCH_URL: &str = "https://search.nixos.org/packages?channel=unstable";
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct InitOptions {
-    pub direnv: bool,
-}
-
 #[derive(Debug)]
 pub struct InitResult {
     pub projects: Vec<ProjectKind>,
     pub packages: Vec<&'static str>,
     pub system: &'static str,
     pub envrc: EnvrcResult,
-    pub untracked_files: Vec<&'static str>,
+    pub gitignore: GitignoreResult,
+    pub git: GitResult,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EnvrcResult {
-    NotRequested,
     Created,
     KeptExisting,
 }
 
-pub fn initialize(directory: &Path, options: InitOptions) -> Result<InitResult, String> {
-    initialize_with_lock(directory, options, lock_flake)
+#[derive(Debug, Eq, PartialEq)]
+pub enum GitignoreResult {
+    NotApplicable,
+    Created,
+    Updated,
+    AlreadyPresent,
+    Failed(String),
+}
+
+#[derive(Debug)]
+pub enum GitResult {
+    NotRepository,
+    Prepared {
+        files: Vec<&'static str>,
+    },
+    Manual {
+        files: Vec<&'static str>,
+        error: String,
+    },
+}
+
+pub fn initialize(directory: &Path) -> Result<InitResult, String> {
+    initialize_with_lock(directory, is_git_repository(directory), lock_flake)
 }
 
 fn initialize_with_lock<F>(
     directory: &Path,
-    options: InitOptions,
+    git_repository: bool,
     lock: F,
 ) -> Result<InitResult, String>
 where
@@ -65,20 +81,18 @@ where
     let projects = detect_projects(directory);
     let packages = packages_for(&projects);
     let system = current_system(std::env::consts::ARCH, std::env::consts::OS)?;
-    let create_envrc = options.direnv && !envrc_path.exists();
-    let envrc = if !options.direnv {
-        EnvrcResult::NotRequested
-    } else if create_envrc {
+    let create_envrc = !envrc_path.exists();
+    let envrc = if create_envrc {
         EnvrcResult::Created
     } else {
         EnvrcResult::KeptExisting
     };
-
     let mut generated_paths = vec![plainix_path.clone(), flake_path.clone(), lock_path.clone()];
+    let mut git_files = vec!["plainix.nix", "flake.nix", "flake.lock"];
     if create_envrc {
         generated_paths.push(envrc_path.clone());
+        git_files.push(".envrc");
     }
-
     let write_result = (|| {
         write_atomic(&plainix_path, render_plainix(system, &packages).as_bytes())?;
         write_atomic(&flake_path, render_flake().as_bytes())?;
@@ -101,19 +115,73 @@ where
         ));
     }
 
-    let mut generated_files = vec!["plainix.nix", "flake.nix", "flake.lock"];
-    if create_envrc {
-        generated_files.push(".envrc");
-    }
-    let untracked_files = untracked_git_files(directory, &generated_files);
+    let gitignore = if git_repository {
+        match ensure_gitignore(&directory.join(".gitignore")) {
+            Ok(result @ (GitignoreResult::Created | GitignoreResult::Updated)) => {
+                git_files.push(".gitignore");
+                result
+            }
+            Ok(result) => result,
+            Err(error) => GitignoreResult::Failed(error),
+        }
+    } else {
+        GitignoreResult::NotApplicable
+    };
+    let git = if git_repository {
+        prepare_git_files(directory, &git_files)
+    } else {
+        GitResult::NotRepository
+    };
 
     Ok(InitResult {
         projects,
         packages,
         system,
         envrc,
-        untracked_files,
+        gitignore,
+        git,
     })
+}
+
+fn ensure_gitignore(path: &Path) -> Result<GitignoreResult, String> {
+    let existing = match fs::read(path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            write_atomic(path, b".direnv/\n")?;
+            return Ok(GitignoreResult::Created);
+        }
+        Err(error) => {
+            return Err(format!(
+                "Plainix: could not read `{}`: {error}",
+                path.display()
+            ));
+        }
+    };
+
+    let text = std::str::from_utf8(&existing).map_err(|error| {
+        format!(
+            "Plainix: could not update `{}` because it is not UTF-8: {error}",
+            path.display()
+        )
+    })?;
+    if text.lines().any(is_direnv_ignored) {
+        return Ok(GitignoreResult::AlreadyPresent);
+    }
+
+    let mut contents = existing;
+    if !contents.is_empty() && !contents.ends_with(b"\n") {
+        contents.push(b'\n');
+    }
+    contents.extend_from_slice(b".direnv/\n");
+    write_atomic(path, &contents)?;
+    Ok(GitignoreResult::Updated)
+}
+
+fn is_direnv_ignored(line: &str) -> bool {
+    matches!(
+        line.trim(),
+        ".direnv" | ".direnv/" | "/.direnv" | "/.direnv/"
+    )
 }
 
 fn with_cleanup(error: String, generated_paths: &[PathBuf]) -> String {
@@ -147,12 +215,13 @@ fn write_atomic(path: &Path, contents: &[u8]) -> Result<(), String> {
         .ok_or_else(|| format!("Plainix: invalid output path `{}`", path.display()))?;
     let temporary = path.with_file_name(format!(".{file_name}.plainix-{}.tmp", std::process::id()));
 
-    fs::write(&temporary, contents).map_err(|error| {
-        format!(
+    if let Err(error) = fs::write(&temporary, contents) {
+        let _ = fs::remove_file(&temporary);
+        return Err(format!(
             "Plainix: could not write temporary file `{}`: {error}",
             temporary.display()
-        )
-    })?;
+        ));
+    }
     if let Err(error) = fs::rename(&temporary, path) {
         let _ = fs::remove_file(&temporary);
         return Err(format!(
@@ -163,52 +232,65 @@ fn write_atomic(path: &Path, contents: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
-fn untracked_git_files(directory: &Path, generated_files: &[&'static str]) -> Vec<&'static str> {
-    let in_git_repository = Command::new("git")
+fn is_git_repository(directory: &Path) -> bool {
+    Command::new("git")
         .args(["-C"])
         .arg(directory)
         .args(["rev-parse", "--is-inside-work-tree"])
         .output()
-        .is_ok_and(|output| output.status.success());
+        .is_ok_and(|output| output.status.success())
+}
 
-    if !in_git_repository {
-        return Vec::new();
+fn prepare_git_files(directory: &Path, files: &[&'static str]) -> GitResult {
+    let output = Command::new("git")
+        .args(["-C"])
+        .arg(directory)
+        .args(["add", "--intent-to-add", "--force", "--"])
+        .args(files)
+        .output();
+
+    match output {
+        Ok(output) if output.status.success() => GitResult::Prepared {
+            files: files.to_vec(),
+        },
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+            let error = if stderr.is_empty() {
+                format!("git add exited with {}", output.status)
+            } else {
+                stderr
+            };
+            GitResult::Manual {
+                files: files.to_vec(),
+                error,
+            }
+        }
+        Err(error) => GitResult::Manual {
+            files: files.to_vec(),
+            error: error.to_string(),
+        },
     }
-
-    generated_files
-        .iter()
-        .copied()
-        .filter(|file| {
-            !Command::new("git")
-                .args(["-C"])
-                .arg(directory)
-                .args(["ls-files", "--error-unmatch", "--", file])
-                .output()
-                .is_ok_and(|output| output.status.success())
-        })
-        .collect()
 }
 
 fn lock_flake(directory: &Path) -> Result<(), String> {
-    let output = Command::new("nix")
+    eprintln!("Creating flake.lock with Nix (this may take a moment)...");
+    let status = Command::new("nix")
         .args(["flake", "lock", "path:."])
         .current_dir(directory)
-        .output()
+        .status()
         .map_err(|error| {
             format!(
                 "Plainix: could not run `nix flake lock`: {error}\nInstall Nix and enable `nix-command` and `flakes`, then try again."
             )
         })?;
 
-    if output.status.success() {
-        return Ok(());
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Plainix: `nix flake lock` failed with {status}. See the Nix output above.\nEnsure Nix has `experimental-features = nix-command flakes` enabled."
+        ))
     }
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    Err(format!(
-        "Plainix: `nix flake lock` failed:\n{}\nEnsure Nix has `experimental-features = nix-command flakes` enabled.",
-        stderr.trim()
-    ))
 }
 
 fn render_plainix(system: &str, packages: &[&str]) -> String {
@@ -258,13 +340,17 @@ mod tests {
         )
         .unwrap();
 
-        let result = initialize_with_lock(&directory, InitOptions { direnv: true }, |path| {
+        let result = initialize_with_lock(&directory, false, |path| {
             fs::write(path.join("flake.lock"), "{}\n").map_err(|error| error.to_string())
         })
         .unwrap();
 
         let plainix = fs::read_to_string(directory.join("plainix.nix")).unwrap();
         assert_eq!(result.projects, vec![ProjectKind::Rust]);
+        assert_eq!(result.envrc, EnvrcResult::Created);
+        assert_eq!(result.gitignore, GitignoreResult::NotApplicable);
+        assert!(matches!(result.git, GitResult::NotRepository));
+        assert!(!directory.join(".gitignore").exists());
         assert!(plainix.contains("\"rustc\""));
         assert!(plainix.contains(NIXPKGS_INPUT));
         assert!(plainix.contains(PACKAGE_SEARCH_URL));
@@ -280,10 +366,8 @@ mod tests {
     fn removes_generated_files_when_locking_fails() {
         let directory = temporary_directory("rollback");
 
-        let error = initialize_with_lock(&directory, InitOptions { direnv: true }, |_| {
-            Err("lock failed".to_owned())
-        })
-        .unwrap_err();
+        let error =
+            initialize_with_lock(&directory, false, |_| Err("lock failed".to_owned())).unwrap_err();
 
         assert_eq!(error, "lock failed");
         for file in ["plainix.nix", "flake.nix", "flake.lock", ".envrc"] {
@@ -297,7 +381,7 @@ mod tests {
         let directory = temporary_directory("existing");
         fs::write(directory.join("plainix.nix"), "original project\n").unwrap();
 
-        let error = initialize_with_lock(&directory, InitOptions::default(), |_| {
+        let error = initialize_with_lock(&directory, false, |_| {
             panic!("lock must not run when a project file already exists")
         })
         .unwrap_err();
@@ -315,7 +399,7 @@ mod tests {
         let directory = temporary_directory("envrc");
         fs::write(directory.join(".envrc"), "source_env custom.envrc\n").unwrap();
 
-        let result = initialize_with_lock(&directory, InitOptions { direnv: true }, |path| {
+        let result = initialize_with_lock(&directory, false, |path| {
             fs::write(path.join("flake.lock"), "{}\n").map_err(|error| error.to_string())
         })
         .unwrap();
@@ -331,6 +415,92 @@ mod tests {
             fs::read_to_string(directory.join(".envrc")).unwrap(),
             "source_env custom.envrc\n"
         );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn prepares_git_files_without_staging_contents() {
+        let directory = temporary_directory("git");
+        assert!(
+            Command::new("git")
+                .args(["init", "--quiet"])
+                .current_dir(&directory)
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+        fs::write(directory.join(".gitignore"), "/target\n").unwrap();
+
+        let result = initialize_with_lock(&directory, true, |path| {
+            fs::write(path.join("flake.lock"), "{}\n").map_err(|error| error.to_string())
+        })
+        .unwrap();
+
+        let GitResult::Prepared { files } = result.git else {
+            panic!("expected generated files to be prepared for Git");
+        };
+        for file in [
+            "plainix.nix",
+            "flake.nix",
+            "flake.lock",
+            ".envrc",
+            ".gitignore",
+        ] {
+            assert!(files.contains(&file));
+            assert!(
+                Command::new("git")
+                    .args(["ls-files", "--error-unmatch", "--", file])
+                    .current_dir(&directory)
+                    .output()
+                    .unwrap()
+                    .status
+                    .success()
+            );
+        }
+        assert!(
+            Command::new("git")
+                .args(["diff", "--cached", "--quiet"])
+                .current_dir(&directory)
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+        assert!(
+            fs::read_to_string(directory.join(".gitignore"))
+                .unwrap()
+                .contains(".direnv/\n")
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn updates_gitignore_once() {
+        let directory = temporary_directory("gitignore");
+        let path = directory.join(".gitignore");
+        fs::write(&path, "/target").unwrap();
+
+        assert_eq!(ensure_gitignore(&path).unwrap(), GitignoreResult::Updated);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "/target\n.direnv/\n");
+        assert_eq!(
+            ensure_gitignore(&path).unwrap(),
+            GitignoreResult::AlreadyPresent
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn leaves_gitignore_unchanged_when_locking_fails() {
+        let directory = temporary_directory("gitignore-rollback");
+        let path = directory.join(".gitignore");
+        fs::write(&path, "/target\n").unwrap();
+
+        let error =
+            initialize_with_lock(&directory, true, |_| Err("lock failed".to_owned())).unwrap_err();
+
+        assert_eq!(error, "lock failed");
+        assert_eq!(fs::read_to_string(path).unwrap(), "/target\n");
         fs::remove_dir_all(directory).unwrap();
     }
 }

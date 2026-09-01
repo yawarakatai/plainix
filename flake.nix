@@ -37,6 +37,14 @@
             version = "0.1.0";
             src = source;
             cargoLock.lockFile = ./Cargo.lock;
+            nativeBuildInputs = [
+              pkgs.gitMinimal
+              pkgs.makeWrapper
+            ];
+            postInstall = ''
+              wrapProgram $out/bin/plainix \
+                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.gitMinimal ]}
+            '';
 
             meta = {
               description = "Scaffold reproducible project environments with Nix";

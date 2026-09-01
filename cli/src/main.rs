@@ -2,13 +2,13 @@ mod detect;
 mod generate;
 mod preset;
 
-use generate::{EnvrcResult, InitOptions};
+use generate::{EnvrcResult, GitResult, GitignoreResult};
 use std::process::ExitCode;
 
-const USAGE: &str = "Plainix scaffolds reproducible project environments with Nix.\n\nUsage:\n  plainix init [--direnv]\n  plainix --help\n  plainix --version\n\nOptions:\n  --direnv   Generate .envrc for nix-direnv (never runs direnv allow)\n";
+const USAGE: &str = "Plainix scaffolds reproducible project environments with Nix.\n\nUsage:\n  plainix init\n  plainix --help\n  plainix --version\n\nPlainix generates .envrc for nix-direnv but never runs direnv allow.\n";
 
 enum Action {
-    Init(InitOptions),
+    Init,
     Help,
     Version,
 }
@@ -23,15 +23,15 @@ fn parse_args(arguments: impl IntoIterator<Item = String>) -> Result<Action, Str
         "-h" | "--help" => Ok(Action::Help),
         "-V" | "--version" => Ok(Action::Version),
         "init" => {
-            let mut options = InitOptions::default();
-            for argument in arguments {
-                match argument.as_str() {
-                    "--direnv" => options.direnv = true,
-                    "-h" | "--help" => return Ok(Action::Help),
-                    _ => return Err(format!("Plainix: unknown option `{argument}`\n\n{USAGE}")),
+            if let Some(argument) = arguments.next() {
+                if argument == "-h" || argument == "--help" {
+                    Ok(Action::Help)
+                } else {
+                    Err(format!("Plainix: unknown option `{argument}`\n\n{USAGE}"))
                 }
+            } else {
+                Ok(Action::Init)
             }
-            Ok(Action::Init(options))
         }
         _ => Err(format!("Plainix: unknown command `{command}`\n\n{USAGE}")),
     }
@@ -41,10 +41,10 @@ fn run() -> Result<(), String> {
     match parse_args(std::env::args().skip(1))? {
         Action::Help => print!("{USAGE}"),
         Action::Version => println!("plainix {}", env!("CARGO_PKG_VERSION")),
-        Action::Init(options) => {
+        Action::Init => {
             let directory = std::env::current_dir()
                 .map_err(|error| format!("Plainix: could not read current directory: {error}"))?;
-            let result = generate::initialize(&directory, options)?;
+            let result = generate::initialize(&directory)?;
             let presets = if result.projects.is_empty() {
                 "none".to_owned()
             } else {
@@ -70,24 +70,45 @@ fn run() -> Result<(), String> {
             println!("Created flake.lock");
 
             match result.envrc {
-                EnvrcResult::NotRequested => {}
                 EnvrcResult::Created => {
                     println!("Created .envrc");
-                    println!();
-                    println!("To activate it automatically, review the files and run:");
-                    println!("  direnv allow");
                 }
                 EnvrcResult::KeptExisting => {
                     println!("Kept existing .envrc; add `use flake` manually if needed");
                 }
             }
 
-            if !result.untracked_files.is_empty() {
+            match result.gitignore {
+                GitignoreResult::Created => println!("Created .gitignore with .direnv/"),
+                GitignoreResult::Updated => println!("Added .direnv/ to .gitignore"),
+                GitignoreResult::Failed(error) => {
+                    println!("Could not add .direnv/ to .gitignore: {error}");
+                }
+                GitignoreResult::NotApplicable | GitignoreResult::AlreadyPresent => {}
+            }
+
+            match result.git {
+                GitResult::NotRepository => {}
+                GitResult::Prepared { files } => {
+                    println!();
+                    println!(
+                        "Prepared generated files for Git so Nix can see them; contents remain unstaged."
+                    );
+                    println!("To commit them later:");
+                    println!("  git add {}", files.join(" "));
+                }
+                GitResult::Manual { files, error } => {
+                    println!();
+                    println!("Could not prepare generated files for Git: {error}");
+                    println!("Before running nix develop, stage them manually:");
+                    println!("  git add {}", files.join(" "));
+                }
+            }
+
+            if result.envrc == EnvrcResult::Created {
                 println!();
-                println!(
-                    "Nix only sees tracked files in a Git repository. Stage the generated files:"
-                );
-                println!("  git add {}", result.untracked_files.join(" "));
+                println!("If you use direnv, review the files and run:");
+                println!("  direnv allow");
             }
 
             println!();
@@ -113,16 +134,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_init_options() {
-        let action = parse_args(["init", "--direnv"].map(str::to_owned)).unwrap();
-        let Action::Init(options) = action else {
-            panic!("expected init action");
-        };
-        assert!(options.direnv);
+    fn parses_init() {
+        assert!(matches!(
+            parse_args(["init"].map(str::to_owned)).unwrap(),
+            Action::Init
+        ));
     }
 
     #[test]
     fn rejects_unknown_options() {
         assert!(parse_args(["init", "--unknown"].map(str::to_owned)).is_err());
+        assert!(parse_args(["init", "--direnv"].map(str::to_owned)).is_err());
     }
 }
