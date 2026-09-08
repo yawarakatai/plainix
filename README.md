@@ -60,14 +60,21 @@ nix run github:yawarakatai/plainix -- init --empty
 | Tool | `--with` name | Initial packages |
 | --- | --- | --- |
 | Blender | `blender` | Blender |
-| C/C++ | `cpp` | compiler, CMake, Make, Ninja, pkg-config |
+| C/C++ | `cpp` | compiler, build tools, clangd, clang-format, clang-tidy |
 | FreeCAD | `freecad` | FreeCAD |
-| Go | `go` | Go, gopls |
+| Go | `go` | Go, gopls, golangci-lint |
 | Godot | `godot` | Godot 4 |
+| Haskell | `haskell` | GHC, Cabal, HLS, Ormolu, HLint |
 | KiCad | `kicad` | KiCad |
-| Python | `python` | Python, Ruff, uv |
+| Lua | `lua` | Lua, language server, StyLua, Luacheck |
+| Nix | `nix` | nixd, nixfmt, Statix, deadnix |
+| OCaml | `ocaml` | OCaml, Dune, OCaml-LSP, ocamlformat |
+| Python | `python` | Python, basedpyright, Ruff, uv |
 | Rust | `rust` | Cargo, Clippy, rust-analyzer, rustc, rustfmt |
-| TypeScript | `typescript` | Node.js, TypeScript, language server |
+| Shell | `shell` | Bash, language server, shfmt, ShellCheck |
+| TOML | `toml` | Taplo language server, formatter, validator |
+| JavaScript / TypeScript | `typescript` | Node.js, TypeScript, language server, Biome |
+| YAML | `yaml` | language server, Prettier, yamllint |
 | Zig | `zig` | Zig, ZLS |
 
 Supported platforms are `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin`.

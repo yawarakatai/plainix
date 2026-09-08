@@ -35,8 +35,15 @@ pub const PRESETS: &[Preset] = &[
     Preset {
         id: "cpp",
         name: "C/C++",
-        description: "compiler, CMake, Make, Ninja, and pkg-config",
-        packages: &["cmake", "gnumake", "ninja", "pkg-config", "stdenv.cc"],
+        description: "compiler, build tools, language server, formatter, and linter",
+        packages: &[
+            "clang-tools",
+            "cmake",
+            "gnumake",
+            "ninja",
+            "pkg-config",
+            "stdenv.cc",
+        ],
         systems: SUPPORTED_SYSTEMS,
     },
     Preset {
@@ -49,8 +56,8 @@ pub const PRESETS: &[Preset] = &[
     Preset {
         id: "go",
         name: "Go",
-        description: "compiler and language server",
-        packages: &["go", "gopls"],
+        description: "compiler, language server, formatter, and linter",
+        packages: &["go", "golangci-lint", "gopls"],
         systems: SUPPORTED_SYSTEMS,
     },
     Preset {
@@ -61,6 +68,19 @@ pub const PRESETS: &[Preset] = &[
         systems: SUPPORTED_SYSTEMS,
     },
     Preset {
+        id: "haskell",
+        name: "Haskell",
+        description: "GHC, Cabal, language server, formatter, and linter",
+        packages: &[
+            "cabal-install",
+            "ghc",
+            "haskell-language-server",
+            "hlint",
+            "ormolu",
+        ],
+        systems: SUPPORTED_SYSTEMS,
+    },
+    Preset {
         id: "kicad",
         name: "KiCad",
         description: "electronics design automation suite",
@@ -68,10 +88,36 @@ pub const PRESETS: &[Preset] = &[
         systems: SUPPORTED_SYSTEMS,
     },
     Preset {
+        id: "lua",
+        name: "Lua",
+        description: "interpreter, language server, formatter, and linter",
+        packages: &[
+            "lua",
+            "lua-language-server",
+            "luaPackages.luacheck",
+            "stylua",
+        ],
+        systems: SUPPORTED_SYSTEMS,
+    },
+    Preset {
+        id: "nix",
+        name: "Nix",
+        description: "language server, formatter, and static analysis tools",
+        packages: &["deadnix", "nixd", "nixfmt", "statix"],
+        systems: SUPPORTED_SYSTEMS,
+    },
+    Preset {
+        id: "ocaml",
+        name: "OCaml",
+        description: "compiler, Dune, language server, and formatter",
+        packages: &["dune_3", "ocaml", "ocamlPackages.ocaml-lsp", "ocamlformat"],
+        systems: SUPPORTED_SYSTEMS,
+    },
+    Preset {
         id: "python",
         name: "Python",
-        description: "Python, Ruff, and uv",
-        packages: &["python3", "ruff", "uv"],
+        description: "Python, language server, Ruff, and uv",
+        packages: &["basedpyright", "python3", "ruff", "uv"],
         systems: SUPPORTED_SYSTEMS,
     },
     Preset {
@@ -82,10 +128,41 @@ pub const PRESETS: &[Preset] = &[
         systems: SUPPORTED_SYSTEMS,
     },
     Preset {
+        id: "shell",
+        name: "Shell",
+        description: "Bash, language server, formatter, and linter",
+        packages: &[
+            "bashInteractive",
+            "bash-language-server",
+            "shellcheck",
+            "shfmt",
+        ],
+        systems: SUPPORTED_SYSTEMS,
+    },
+    Preset {
+        id: "toml",
+        name: "TOML",
+        description: "language server, formatter, and validator",
+        packages: &["taplo"],
+        systems: SUPPORTED_SYSTEMS,
+    },
+    Preset {
         id: "typescript",
-        name: "TypeScript",
-        description: "Node.js, TypeScript, and language server",
-        packages: &["nodejs_22", "typescript", "typescript-language-server"],
+        name: "JavaScript / TypeScript",
+        description: "Node.js, TypeScript, language server, formatter, and linter",
+        packages: &[
+            "biome",
+            "nodejs_22",
+            "typescript",
+            "typescript-language-server",
+        ],
+        systems: SUPPORTED_SYSTEMS,
+    },
+    Preset {
+        id: "yaml",
+        name: "YAML",
+        description: "language server, formatter, and linter",
+        packages: &["prettier", "yaml-language-server", "yamllint"],
         systems: SUPPORTED_SYSTEMS,
     },
     Preset {
@@ -158,9 +235,25 @@ mod tests {
 
     #[test]
     fn combines_presets_without_duplicate_packages() {
-        let rust = *PRESETS.iter().find(|preset| preset.id == "rust").unwrap();
-        let packages = packages_for(&[rust, rust]);
-        assert_eq!(packages.iter().filter(|name| **name == "rustc").count(), 1);
+        let first = Preset {
+            id: "first",
+            name: "First",
+            description: "test preset",
+            packages: &["shared", "first"],
+            systems: SUPPORTED_SYSTEMS,
+        };
+        let second = Preset {
+            id: "second",
+            name: "Second",
+            description: "test preset",
+            packages: &["shared", "second"],
+            systems: SUPPORTED_SYSTEMS,
+        };
+
+        assert_eq!(
+            packages_for(&[first, second, first]),
+            vec!["shared", "first", "second"]
+        );
     }
 
     #[test]
