@@ -11,6 +11,7 @@ projects only need `systems` and `packages`.
   packages = [ "git" ];
   env.EXAMPLE = "value";
   shellHook = "echo ready";
+  allowUnfree = false;
 }
 ```
 
@@ -28,8 +29,9 @@ systems = [
 ];
 ```
 
-Only these three systems are supported. When omitted, the list defaults to
-`x86_64-linux`.
+Only these three systems are supported. When omitted, the list defaults to all
+three. A package that is missing or broken on a listed system is reported only
+when that system enters the environment, and `plainix update` checks them all.
 
 ## `packages`
 
@@ -80,13 +82,28 @@ shellHook = ''
 
 Review a repository's shell hook before running `nix develop` or `direnv allow`.
 
+## `allowUnfree`
+
+Set to `true` to allow packages with unfree licenses, such as `vscode`. It
+applies to the whole project and defaults to `false`.
+
+```nix
+allowUnfree = true;
+```
+
 ## System-specific values
 
-`packages`, `env`, and `shellHook` may be functions. A function receives helpers
-for resolving a package or constructing a library path:
+`packages`, `env`, and `shellHook` may be functions. A function receives the
+current system and helpers for resolving a package or constructing a library
+path:
 
 ```nix
 {
+  packages =
+    nix:
+    [ "git" ]
+    ++ (if nix.system == "aarch64-darwin" then [ ] else [ "freecad" ]);
+
   env = nix: {
     SQLITE_INCLUDE_DIR = "${nix.package "sqlite.dev"}/include";
     SQLITE_LIBRARY_PATH = nix.libraryPath [ "sqlite" ];
@@ -94,8 +111,17 @@ for resolving a package or constructing a library path:
 }
 ```
 
+`nix.package` returns the real package, so its Nix attributes remain available:
+
+```nix
+packages = nix: [
+  ((nix.package "python3").withPackages (ps: [ ps.requests ]))
+];
+```
+
 The context contains only:
 
+- `nix.system`
 - `nix.package "name"`
 - `nix.libraryPath [ ... ]`
 

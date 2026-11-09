@@ -77,6 +77,8 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
           minimal = self.lib.project { inherit nixpkgs; } ./tests/minimal/plainix.nix;
+          allowUnfree = self.lib.project { inherit nixpkgs; } ./tests/allow-unfree/plainix.nix;
+          systemSpecific = self.lib.project { inherit nixpkgs; } ./tests/system-specific/plainix.nix;
           # Evaluates every preset for every system it claims, so a host only
           # needs to run this once to catch breakage on the other platforms.
           unavailablePresetPackages = pkgs.lib.concatMap (
@@ -99,11 +101,16 @@
             map
               (
                 projectFile:
-                builtins.tryEval (builtins.deepSeq (self.lib.project { inherit nixpkgs; } projectFile) true)
+                builtins.tryEval
+                  (self.lib.project { inherit nixpkgs; } projectFile).devShells.${system}.default.drvPath
               )
               [
                 ./tests/invalid/plainix.nix
                 ./tests/invalid-package/plainix.nix
+                ./tests/invalid-package-set/plainix.nix
+                ./tests/invalid-package-value/plainix.nix
+                ./tests/invalid-unfree/plainix.nix
+                ./tests/invalid-allow-unfree/plainix.nix
                 ./tests/invalid-system/plainix.nix
               ];
           examples = map (projectFile: self.lib.project { inherit nixpkgs; } projectFile) [
@@ -118,6 +125,9 @@
           library =
             assert builtins.isString minimal.devShells.${system}.default.drvPath;
             assert minimal.devShells.${system}.default.RUST_BACKTRACE == "1";
+            assert builtins.isString allowUnfree.devShells.${system}.default.drvPath;
+            assert systemSpecific.devShells.${system}.default.PLAINIX_SYSTEM == system;
+            assert builtins.attrNames systemSpecific.devShells == builtins.sort builtins.lessThan systems;
             assert pkgs.lib.assertMsg (unavailablePresetPackages == [ ])
               "Plainix: presets offer unavailable packages: ${pkgs.lib.concatStringsSep ", " unavailablePresetPackages}";
             assert builtins.all (result: !result.success) invalidProjects;

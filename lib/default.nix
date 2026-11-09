@@ -28,6 +28,7 @@
             throw "Plainix: `${label}` contains unknown field(s): ${join unknown}";
 
       spec = validateAttrs "plainix.nix" [
+        "allowUnfree"
         "env"
         "packages"
         "shellHook"
@@ -39,7 +40,7 @@
         "aarch64-linux"
         "aarch64-darwin"
       ];
-      rawSystems = spec.systems or [ "x86_64-linux" ];
+      rawSystems = spec.systems or supportedSystems;
       systems =
         if !builtins.isList rawSystems then
           throw "Plainix: `systems` must be a list of strings, but got ${typeOf rawSystems}"
@@ -65,12 +66,26 @@
         lib.attrByPath (lib.splitString "." path) (throw "Plainix: ${label} `${path}` does not exist")
           attrs;
 
+      allowUnfree =
+        let
+          value = spec.allowUnfree or false;
+        in
+        if builtins.isBool value then
+          value
+        else
+          throw "Plainix: `allowUnfree` must be a boolean, but got ${typeOf value}";
+
       packagesFor =
         system:
-        if builtins.hasAttr system nixpkgs.legacyPackages then
-          nixpkgs.legacyPackages.${system}
+        if !(builtins.hasAttr system nixpkgs.legacyPackages) then
+          throw "Plainix: nixpkgs does not provide packages for system `${system}`"
+        else if allowUnfree then
+          import nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
+          }
         else
-          throw "Plainix: nixpkgs does not provide packages for system `${system}`";
+          nixpkgs.legacyPackages.${system};
 
       evaluate = context: value: if builtins.isFunction value then value context else value;
 
@@ -116,9 +131,25 @@
         system:
         let
           pkgs = packagesFor system;
-          resolvePackage = value: if builtins.isString value then getPath "package" pkgs value else value;
+          resolvePackage =
+            value:
+            let
+              label = if builtins.isString value then "`${value}`" else "`${value.name or (typeOf value)}`";
+              package = if builtins.isString value then getPath "package" pkgs value else value;
+            in
+            if !(lib.isDerivation package) then
+              throw "Plainix: ${label} is not a package"
+            # Checked here because nixpkgs only refuses later, with advice that
+            # cannot be applied from plainix.nix.
+            else if package.meta.available or true then
+              package
+            else if package.meta.unfree or false then
+              throw "Plainix: ${label} is unfree; add `allowUnfree = true;` to plainix.nix to use it"
+            else
+              throw "Plainix: ${label} is not available on `${system}` (broken or unsupported); remove it or drop this system from `systems`";
           resolvePackages = map resolvePackage;
           context = {
+            inherit system;
             package = resolvePackage;
             libraryPath = values: pkgs.lib.makeLibraryPath (resolvePackages values);
           };
