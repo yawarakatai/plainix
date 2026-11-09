@@ -1,13 +1,15 @@
 mod generate;
 mod platform;
 mod preset;
+mod update;
 
 use generate::{EnvrcResult, GitResult, GitignoreResult};
 use inquire::{MultiSelect, error::InquireError};
 use preset::Preset;
 use std::process::ExitCode;
+use update::UpdateResult;
 
-const USAGE: &str = "Plainix scaffolds reproducible project environments with Nix.\n\nUsage:\n  plainix init [OPTIONS]\n  plainix --help\n  plainix --version\n\nOptions for init:\n  --with <TOOL>  Include a tool without prompting; may be repeated\n  --empty        Create an empty environment without prompting\n\nWithout init options, Plainix opens an interactive tool selection.\nPlainix generates .envrc for nix-direnv but never runs direnv allow.\n";
+const USAGE: &str = "Plainix scaffolds reproducible project environments with Nix.\n\nUsage:\n  plainix init [OPTIONS]\n  plainix update\n  plainix --help\n  plainix --version\n\nOptions for init:\n  --with <TOOL>  Include a tool without prompting; may be repeated\n  --empty        Create an empty environment without prompting\n\nWithout init options, Plainix opens an interactive tool selection.\nPlainix generates .envrc for nix-direnv but never runs direnv allow.\n\nupdate moves flake.lock to the latest versions and restores it if any declared\nsystem no longer evaluates.\n";
 
 enum SelectionMode {
     Interactive,
@@ -17,6 +19,7 @@ enum SelectionMode {
 
 enum Action {
     Init(SelectionMode),
+    Update,
     Help,
     Version,
 }
@@ -31,6 +34,11 @@ fn parse_args(arguments: impl IntoIterator<Item = String>) -> Result<Action, Str
         "-h" | "--help" => Ok(Action::Help),
         "-V" | "--version" => Ok(Action::Version),
         "init" => parse_init_args(arguments),
+        "update" => match arguments.next().as_deref() {
+            None => Ok(Action::Update),
+            Some("-h" | "--help") => Ok(Action::Help),
+            Some(argument) => Err(format!("Plainix: unknown option `{argument}`\n\n{USAGE}")),
+        },
         _ => Err(format!("Plainix: unknown command `{command}`\n\n{USAGE}")),
     }
 }
@@ -101,6 +109,17 @@ fn run() -> Result<(), String> {
     match parse_args(std::env::args().skip(1))? {
         Action::Help => print!("{USAGE}"),
         Action::Version => println!("plainix {}", env!("CARGO_PKG_VERSION")),
+        Action::Update => {
+            let directory = std::env::current_dir()
+                .map_err(|error| format!("Plainix: could not read current directory: {error}"))?;
+            match update::update(&directory)? {
+                UpdateResult::Updated => {
+                    println!("Updated flake.lock; every declared system still evaluates.");
+                    println!("Review the changes above and commit flake.lock.");
+                }
+                UpdateResult::AlreadyCurrent => println!("Already up to date."),
+            }
+        }
         Action::Init(mode) => {
             let directory = std::env::current_dir()
                 .map_err(|error| format!("Plainix: could not read current directory: {error}"))?;
@@ -225,6 +244,15 @@ mod tests {
             parse_args(["init", "--empty"].map(str::to_owned)).unwrap(),
             Action::Init(SelectionMode::Empty)
         ));
+    }
+
+    #[test]
+    fn parses_update() {
+        assert!(matches!(
+            parse_args(["update"].map(str::to_owned)).unwrap(),
+            Action::Update
+        ));
+        assert!(parse_args(["update", "--force"].map(str::to_owned)).is_err());
     }
 
     #[test]

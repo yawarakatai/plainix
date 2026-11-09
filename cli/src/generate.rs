@@ -210,7 +210,7 @@ fn with_cleanup(error: String, generated_paths: &[PathBuf]) -> String {
     }
 }
 
-fn write_atomic(path: &Path, contents: &[u8]) -> Result<(), String> {
+pub(crate) fn write_atomic(path: &Path, contents: &[u8]) -> Result<(), String> {
     let file_name = path
         .file_name()
         .and_then(|name| name.to_str())
