@@ -72,9 +72,12 @@ expect_error '{ pakages = [ ]; }' '`plainix.nix` contains unknown field(s): paka
 
 echo "e2e: presets limit generated systems"
 if [[ "$system" == *-darwin ]]; then
-  if "$plainix" init --with freecad >/dev/null 2>&1; then
+  mkdir "$work/linux-only"
+  cd "$work/linux-only"
+  if output=$("$plainix" init --with freecad 2>&1); then
     fail "macOS accepted a Linux-only preset"
   fi
+  grep -qF "is not available on" <<<"$output" || fail "unexpected refusal: $output"
 else
   new_project linux-only --with freecad
   if grep -q aarch64-darwin plainix.nix; then
