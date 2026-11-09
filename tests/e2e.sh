@@ -71,9 +71,15 @@ expect_error '{ packages = [ "hello-unfree" ]; }' '`hello-unfree` is unfree'
 expect_error '{ pakages = [ ]; }' '`plainix.nix` contains unknown field(s): pakages'
 
 echo "e2e: presets limit generated systems"
-new_project linux-only --with freecad
-if grep -q aarch64-darwin plainix.nix; then
-  fail "Linux-only preset declared aarch64-darwin"
+if [[ "$system" == *-darwin ]]; then
+  if "$plainix" init --with freecad >/dev/null 2>&1; then
+    fail "macOS accepted a Linux-only preset"
+  fi
+else
+  new_project linux-only --with freecad
+  if grep -q aarch64-darwin plainix.nix; then
+    fail "Linux-only preset declared aarch64-darwin"
+  fi
 fi
 
 echo "e2e: passed"
