@@ -85,7 +85,7 @@ pub const PRESETS: &[Preset] = &[
         name: "KiCad",
         description: "electronics design automation suite",
         packages: &["kicad"],
-        systems: SUPPORTED_SYSTEMS,
+        systems: LINUX_SYSTEMS,
     },
     Preset {
         id: "lua",
@@ -264,6 +264,38 @@ mod tests {
             !available_for("aarch64-darwin")
                 .iter()
                 .any(|preset| preset.id == "freecad")
+        );
+    }
+
+    fn json_strings(values: &[&str]) -> String {
+        let quoted = values
+            .iter()
+            .map(|value| format!("\"{value}\""))
+            .collect::<Vec<_>>()
+            .join(",");
+        format!("[{quoted}]")
+    }
+
+    // `nix flake check` reads this fixture to evaluate presets, so it must not drift.
+    #[test]
+    fn evaluation_fixture_matches_presets() {
+        let entries = PRESETS
+            .iter()
+            .map(|preset| {
+                format!(
+                    "{{\"id\":\"{}\",\"packages\":{},\"systems\":{}}}",
+                    preset.id,
+                    json_strings(preset.packages),
+                    json_strings(preset.systems)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",\n");
+
+        assert_eq!(
+            include_str!("../../tests/presets.json"),
+            format!("[\n{entries}\n]\n"),
+            "tests/presets.json must mirror PRESETS"
         );
     }
 

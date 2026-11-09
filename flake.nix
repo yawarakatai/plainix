@@ -30,6 +30,7 @@
               ./Cargo.lock
               ./cli/Cargo.toml
               ./cli/src
+              ./tests/presets.json
             ];
           };
           plainix = pkgs.rustPlatform.buildRustPackage {
@@ -76,7 +77,24 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
           minimal = self.lib.project { inherit nixpkgs; } ./tests/minimal/plainix.nix;
-          presets = self.lib.project { inherit nixpkgs; } ./tests/presets/plainix.nix;
+          # Evaluates every preset for every system it claims, so a host only
+          # needs to run this once to catch breakage on the other platforms.
+          unavailablePresetPackages = pkgs.lib.concatMap (
+            preset:
+            pkgs.lib.concatMap (
+              presetSystem:
+              map (package: "${preset.id}: ${package} on ${presetSystem}") (
+                builtins.filter (
+                  package:
+                  !(builtins.tryEval
+                    (pkgs.lib.attrByPath (pkgs.lib.splitString "." package) (throw "missing")
+                      nixpkgs.legacyPackages.${presetSystem}
+                    ).drvPath
+                  ).success
+                ) preset.packages
+              )
+            ) preset.systems
+          ) (builtins.fromJSON (builtins.readFile ./tests/presets.json));
           invalidProjects =
             map
               (
@@ -100,7 +118,8 @@
           library =
             assert builtins.isString minimal.devShells.${system}.default.drvPath;
             assert minimal.devShells.${system}.default.RUST_BACKTRACE == "1";
-            assert builtins.isString presets.devShells.${system}.default.drvPath;
+            assert pkgs.lib.assertMsg (unavailablePresetPackages == [ ])
+              "Plainix: presets offer unavailable packages: ${pkgs.lib.concatStringsSep ", " unavailablePresetPackages}";
             assert builtins.all (result: !result.success) invalidProjects;
             assert builtins.all (
               example: builtins.isString example.devShells.${system}.default.drvPath
