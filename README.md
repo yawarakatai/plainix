@@ -23,9 +23,6 @@ nix run github:yawarakatai/plainix -- init
 nix develop
 ```
 
-The first `nix run` downloads the Rust toolchain (about 650 MiB) and builds
-Plainix; later runs reuse it.
-
 Plainix creates:
 
 - `plainix.nix` — the shared tools and environment

@@ -1,0 +1,19 @@
+[
+{"id":"blender","name":"Blender","description":"3D creation suite","packages":["blender"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"cpp","name":"C/C++","description":"compiler, build tools, language server, formatter, and linter","packages":["clang-tools","cmake","gnumake","ninja","pkg-config","stdenv.cc"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"freecad","name":"FreeCAD","description":"parametric 3D CAD","packages":["freecad"],"systems":["x86_64-linux","aarch64-linux"]},
+{"id":"go","name":"Go","description":"compiler, language server, formatter, and linter","packages":["go","golangci-lint","gopls"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"godot","name":"Godot","description":"Godot 4 game engine","packages":["godot_4"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"haskell","name":"Haskell","description":"GHC, Cabal, language server, formatter, and linter","packages":["cabal-install","ghc","haskell-language-server","hlint","ormolu"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"kicad","name":"KiCad","description":"electronics design automation suite","packages":["kicad"],"systems":["x86_64-linux","aarch64-linux"]},
+{"id":"lua","name":"Lua","description":"interpreter, language server, formatter, and linter","packages":["lua","lua-language-server","luaPackages.luacheck","stylua"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"nix","name":"Nix","description":"language server, formatter, and static analysis tools","packages":["deadnix","nixd","nixfmt","statix"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"ocaml","name":"OCaml","description":"compiler, Dune, language server, and formatter","packages":["dune_3","ocaml","ocamlPackages.ocaml-lsp","ocamlformat"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"python","name":"Python","description":"Python, language server, Ruff, and uv","packages":["basedpyright","python3","ruff","uv"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"rust","name":"Rust","description":"Cargo, compiler, formatter, and language tools","packages":["cargo","clippy","rust-analyzer","rustc","rustfmt"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"shell","name":"Shell","description":"Bash, language server, formatter, and linter","packages":["bashInteractive","bash-language-server","shellcheck","shfmt"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"toml","name":"TOML","description":"language server, formatter, and validator","packages":["taplo"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"typescript","name":"JavaScript / TypeScript","description":"Node.js, TypeScript, language server, formatter, and linter","packages":["biome","nodejs_22","typescript","typescript-language-server"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"yaml","name":"YAML","description":"language server, formatter, and linter","packages":["prettier","yaml-language-server","yamllint"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]},
+{"id":"zig","name":"Zig","description":"compiler and language server","packages":["zig","zls"],"systems":["x86_64-linux","aarch64-linux","aarch64-darwin"]}
+]

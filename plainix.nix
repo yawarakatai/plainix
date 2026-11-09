@@ -6,11 +6,9 @@
   ];
 
   packages = [
-    "cargo"
-    "clippy"
+    "fzf"
     "nixfmt-tree"
-    "rust-analyzer"
-    "rustc"
-    "rustfmt"
+    "python3Minimal"
+    "ruff"
   ];
 }

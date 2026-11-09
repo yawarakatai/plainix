@@ -23,37 +23,29 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          source = pkgs.lib.fileset.toSource {
-            root = ./.;
-            fileset = pkgs.lib.fileset.unions [
-              ./Cargo.toml
-              ./Cargo.lock
-              ./cli/Cargo.toml
-              ./cli/src
-              ./tests/presets.json
-            ];
-          };
-          plainix = pkgs.rustPlatform.buildRustPackage {
-            pname = "plainix";
-            version = "0.4.0";
-            src = source;
-            cargoLock.lockFile = ./Cargo.lock;
-            nativeBuildInputs = [
-              pkgs.gitMinimal
-              pkgs.makeWrapper
-            ];
-            postInstall = ''
-              wrapProgram $out/bin/plainix \
-                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.gitMinimal ]}
-            '';
-
-            meta = {
-              description = "Scaffold reproducible project environments with Nix";
-              homepage = "https://github.com/yawarakatai/plainix";
-              license = pkgs.lib.licenses.mit;
-              mainProgram = "plainix";
-            };
-          };
+          # Everything here comes from the binary cache, so `nix run` compiles
+          # nothing on the user's machine.
+          plainix =
+            pkgs.runCommandLocal "plainix"
+              {
+                meta = {
+                  description = "Scaffold reproducible project environments with Nix";
+                  homepage = "https://github.com/yawarakatai/plainix";
+                  license = pkgs.lib.licenses.mit;
+                  mainProgram = "plainix";
+                };
+              }
+              ''
+                install -Dm444 ${./cli/plainix.py} $out/share/plainix/plainix.py
+                install -Dm444 ${./cli/presets.json} $out/share/plainix/presets.json
+                mkdir -p $out/bin
+                cat > $out/bin/plainix <<EOF
+                #!${pkgs.runtimeShell}
+                export PATH="${pkgs.fzf}/bin:\$PATH"
+                exec ${pkgs.python3Minimal}/bin/python3 -I $out/share/plainix/plainix.py "\$@"
+                EOF
+                chmod +x $out/bin/plainix
+              '';
         in
         {
           inherit plainix;
@@ -96,7 +88,7 @@
                 ) preset.packages
               )
             ) preset.systems
-          ) (builtins.fromJSON (builtins.readFile ./tests/presets.json));
+          ) (builtins.fromJSON (builtins.readFile ./cli/presets.json));
           invalidProjects =
             map
               (
@@ -121,6 +113,21 @@
         in
         {
           cli = packageFor system;
+
+          unit =
+            pkgs.runCommandLocal "plainix-unit-tests"
+              {
+                nativeBuildInputs = [
+                  pkgs.gitMinimal
+                  pkgs.python3Minimal
+                ];
+              }
+              ''
+                cp ${./cli}/* .
+                export HOME=$PWD
+                python3 test_plainix.py
+                touch $out
+              '';
 
           library =
             assert builtins.isString minimal.devShells.${system}.default.drvPath;
