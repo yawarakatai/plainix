@@ -26,7 +26,7 @@ new_project() {
   git init --quiet .
   "$plainix" init "${@:2}" >/dev/null
   # Test this checkout's library rather than the published one.
-  sed -i.bak "s#github:yawarakatai/plainix#git+file://$repo#" flake.nix
+  sed -i.bak "s#github:yawarakatai/plainix#git+file://$repo?shallow=1#" flake.nix
   rm flake.nix.bak
   nix flake lock
 }
