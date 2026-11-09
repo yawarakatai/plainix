@@ -1,12 +1,12 @@
 # Plainix
 
-Plainix gives any project a reproducible, shareable environment of tools. The
-project can be software, a game, device firmware, data work, or a creative
-workspace.
+Plainix is the thinnest way for developers using Nix to hand a team a
+reproducible project environment. List tools in one small file and teammates
+run `nix develop`, on Linux or macOS.
 
-Plainix uses Nix underneath, but you do not need to understand flakes. It
-provides project tools and environment variables without prescribing how the
-project is built or run.
+There is no daemon, no runtime CLI, and no lock-in: Plainix generates a standard
+Nix flake, so you do not have to write one. It provides tools and environment
+variables without prescribing how the project is built or run.
 
 ## Get started
 
@@ -23,6 +23,9 @@ nix run github:yawarakatai/plainix -- init
 nix develop
 ```
 
+The first `nix run` downloads the Rust toolchain (about 650 MiB) and builds
+Plainix; later runs reuse it.
+
 Plainix creates:
 
 - `plainix.nix` — the shared tools and environment
@@ -36,8 +39,13 @@ their contents. Review the files and run the printed `git add` command before
 committing them.
 
 After initialization, `nix develop` is the only command needed; the Plainix CLI
-is no longer required. Select no tools to start with an empty package list ready
-to customize.
+is no longer required, while the generated flake keeps Plainix's small library
+as a locked input. Select no tools to start with an empty package list ready to
+customize.
+
+Nix copies the project into its store when entering the environment: tracked
+files inside a Git repository, and everything outside one. Use Git for projects
+with large files, and keep large assets out of it where practical.
 
 Plainix never runs `direnv allow` or overwrites an existing `.envrc`. If you use
 direnv, review the generated files before allowing them.
@@ -78,7 +86,8 @@ nix run github:yawarakatai/plainix -- init --empty
 | Zig | `zig` | Zig, ZLS |
 
 Supported platforms are `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin`.
-FreeCAD is currently offered on Linux only.
+`plainix init` declares every platform the selected tools support. FreeCAD and
+KiCad are currently offered on Linux only.
 
 ## Customize the environment
 
@@ -100,9 +109,22 @@ link to [search.nixos.org/packages](https://search.nixos.org/packages?channel=un
 ```
 
 Typos, unsupported fields, invalid package values, and unsupported platforms
-produce Plainix errors instead of being silently ignored. Host-level setup such
-as drivers, USB permissions, and proprietary SDK licensing remains outside
+produce Plainix errors instead of being silently ignored. Add
+`allowUnfree = true;` to use packages with unfree licenses. Host-level setup
+such as drivers, USB permissions, and proprietary SDK licensing remains outside
 Plainix.
+
+## Update the environment
+
+```console
+nix run github:yawarakatai/plainix -- update
+```
+
+This moves `flake.lock` to the latest nixpkgs and Plainix, then evaluates the
+environment for every system in `plainix.nix`. If any of them fails, Plainix
+names the cause and restores the previous `flake.lock`. It does not build the
+packages or commit anything. Plain `nix flake update` also works, without the
+check.
 
 ## Documentation
 

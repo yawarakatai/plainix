@@ -35,7 +35,7 @@
           };
           plainix = pkgs.rustPlatform.buildRustPackage {
             pname = "plainix";
-            version = "0.3.0";
+            version = "0.4.0";
             src = source;
             cargoLock.lockFile = ./Cargo.lock;
             nativeBuildInputs = [
