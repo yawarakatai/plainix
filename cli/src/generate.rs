@@ -1,10 +1,10 @@
-use crate::preset::{Preset, packages_for};
+use crate::preset::{Preset, packages_for, shared_systems};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const NIXPKGS_INPUT: &str = "github:NixOS/nixpkgs/nixos-unstable";
+const NIXPKGS_INPUT: &str = "github:NixOS/nixpkgs/nixpkgs-unstable";
 const PLAINIX_INPUT: &str = "github:yawarakatai/plainix";
 const PACKAGE_SEARCH_URL: &str = "https://search.nixos.org/packages?channel=unstable";
 
@@ -12,7 +12,7 @@ const PACKAGE_SEARCH_URL: &str = "https://search.nixos.org/packages?channel=unst
 pub struct InitResult {
     pub presets: Vec<Preset>,
     pub packages: Vec<&'static str>,
-    pub system: &'static str,
+    pub systems: Vec<&'static str>,
     pub envrc: EnvrcResult,
     pub gitignore: GitignoreResult,
     pub git: GitResult,
@@ -65,24 +65,13 @@ pub fn check_directory(directory: &Path) -> Result<(), String> {
     ))
 }
 
-pub fn initialize(
-    directory: &Path,
-    system: &'static str,
-    presets: &[Preset],
-) -> Result<InitResult, String> {
-    initialize_with_lock(
-        directory,
-        is_git_repository(directory),
-        system,
-        presets,
-        lock_flake,
-    )
+pub fn initialize(directory: &Path, presets: &[Preset]) -> Result<InitResult, String> {
+    initialize_with_lock(directory, is_git_repository(directory), presets, lock_flake)
 }
 
 fn initialize_with_lock<F>(
     directory: &Path,
     git_repository: bool,
-    system: &'static str,
     presets: &[Preset],
     lock: F,
 ) -> Result<InitResult, String>
@@ -96,6 +85,7 @@ where
     let lock_path = directory.join("flake.lock");
     let envrc_path = directory.join(".envrc");
     let packages = packages_for(presets);
+    let systems = shared_systems(presets);
     let create_envrc = !envrc_path.exists();
     let envrc = if create_envrc {
         EnvrcResult::Created
@@ -111,7 +101,7 @@ where
     let write_result = (|| {
         write_atomic(
             &plainix_path,
-            render_plainix(system, presets, &packages).as_bytes(),
+            render_plainix(&systems, presets, &packages).as_bytes(),
         )?;
         write_atomic(&flake_path, render_flake().as_bytes())?;
         if create_envrc {
@@ -125,12 +115,6 @@ where
     }
     if let Err(error) = lock(directory) {
         return Err(with_cleanup(error, &generated_paths));
-    }
-    if !lock_path.is_file() {
-        return Err(with_cleanup(
-            "Plainix: `nix flake lock` succeeded without creating `flake.lock`".to_owned(),
-            &generated_paths,
-        ));
     }
 
     let gitignore = if git_repository {
@@ -154,7 +138,7 @@ where
     Ok(InitResult {
         presets: presets.to_vec(),
         packages,
-        system,
+        systems,
         envrc,
         gitignore,
         git,
@@ -290,11 +274,29 @@ fn prepare_git_files(directory: &Path, files: &[&'static str]) -> GitResult {
     }
 }
 
+// Locking only needs flake.nix. Running it in the project would copy the whole
+// directory, including any large assets, into the Nix store.
 fn lock_flake(directory: &Path) -> Result<(), String> {
+    let workspace = std::env::temp_dir().join(format!("plainix-lock-{}", std::process::id()));
+    fs::create_dir(&workspace).map_err(|error| {
+        format!(
+            "Plainix: could not create `{}`: {error}",
+            workspace.display()
+        )
+    })?;
+    let result = lock_in_workspace(directory, &workspace);
+    let _ = fs::remove_dir_all(&workspace);
+    result
+}
+
+fn lock_in_workspace(directory: &Path, workspace: &Path) -> Result<(), String> {
+    fs::copy(directory.join("flake.nix"), workspace.join("flake.nix"))
+        .map_err(|error| format!("Plainix: could not prepare locking: {error}"))?;
+
     eprintln!("Creating flake.lock with Nix (this may take a moment)...");
     let status = Command::new("nix")
         .args(["flake", "lock", "path:."])
-        .current_dir(directory)
+        .current_dir(workspace)
         .status()
         .map_err(|error| {
             format!(
@@ -302,16 +304,31 @@ fn lock_flake(directory: &Path) -> Result<(), String> {
             )
         })?;
 
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!(
+    if !status.success() {
+        return Err(format!(
             "Plainix: `nix flake lock` failed with {status}. See the Nix output above.\nEnsure Nix has `experimental-features = nix-command flakes` enabled."
-        ))
+        ));
     }
+
+    let lock = fs::read(workspace.join("flake.lock")).map_err(|error| {
+        format!("Plainix: `nix flake lock` did not produce a readable `flake.lock`: {error}")
+    })?;
+    write_atomic(&directory.join("flake.lock"), &lock)
 }
 
-fn render_plainix(system: &str, presets: &[Preset], packages: &[&str]) -> String {
+fn render_list(values: &[&str]) -> String {
+    if values.is_empty() {
+        return "[ ]".to_owned();
+    }
+    let lines = values
+        .iter()
+        .map(|value| format!("    \"{value}\""))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("[\n{lines}\n  ]")
+}
+
+fn render_plainix(systems: &[&str], presets: &[Preset], packages: &[&str]) -> String {
     let tools = if presets.is_empty() {
         String::new()
     } else {
@@ -324,19 +341,11 @@ fn render_plainix(system: &str, presets: &[Preset], packages: &[&str]) -> String
                 .join(", ")
         )
     };
-    let packages = if packages.is_empty() {
-        "[ ]".to_owned()
-    } else {
-        let package_lines = packages
-            .iter()
-            .map(|package| format!("    \"{package}\""))
-            .collect::<Vec<_>>()
-            .join("\n");
-        format!("[\n{package_lines}\n  ]")
-    };
+    let systems = render_list(systems);
+    let packages = render_list(packages);
 
     format!(
-        "{tools}# Package source: {NIXPKGS_INPUT} (pinned in flake.lock)\n# Find package names: {PACKAGE_SEARCH_URL}\n\n{{\n  systems = [ \"{system}\" ];\n\n  packages = {packages};\n}}\n"
+        "{tools}# Package source: {NIXPKGS_INPUT} (pinned in flake.lock)\n# Find package names: {PACKAGE_SEARCH_URL}\n\n{{\n  systems = {systems};\n\n  packages = {packages};\n}}\n"
     )
 }
 
@@ -373,7 +382,7 @@ mod tests {
         let directory = temporary_directory("success");
         let rust = preset("rust");
 
-        let result = initialize_with_lock(&directory, false, "x86_64-linux", &[rust], |path| {
+        let result = initialize_with_lock(&directory, false, &[rust], |path| {
             fs::write(path.join("flake.lock"), "{}\n").map_err(|error| error.to_string())
         })
         .unwrap();
@@ -385,6 +394,7 @@ mod tests {
         assert!(matches!(result.git, GitResult::NotRepository));
         assert!(!directory.join(".gitignore").exists());
         assert!(plainix.contains("# Initial tools: Rust"));
+        assert!(plainix.contains("\"aarch64-darwin\""));
         assert!(plainix.contains("\"rustc\""));
         assert!(plainix.contains(NIXPKGS_INPUT));
         assert!(plainix.contains(PACKAGE_SEARCH_URL));
@@ -397,13 +407,32 @@ mod tests {
     }
 
     #[test]
+    fn limits_systems_to_those_every_preset_supports() {
+        let directory = temporary_directory("systems");
+
+        let result = initialize_with_lock(
+            &directory,
+            false,
+            &[preset("rust"), preset("freecad")],
+            |path| fs::write(path.join("flake.lock"), "{}\n").map_err(|error| error.to_string()),
+        )
+        .unwrap();
+
+        assert_eq!(result.systems, vec!["x86_64-linux", "aarch64-linux"]);
+        assert!(
+            !fs::read_to_string(directory.join("plainix.nix"))
+                .unwrap()
+                .contains("aarch64-darwin")
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn removes_generated_files_when_locking_fails() {
         let directory = temporary_directory("rollback");
 
-        let error = initialize_with_lock(&directory, false, "x86_64-linux", &[], |_| {
-            Err("lock failed".to_owned())
-        })
-        .unwrap_err();
+        let error = initialize_with_lock(&directory, false, &[], |_| Err("lock failed".to_owned()))
+            .unwrap_err();
 
         assert_eq!(error, "lock failed");
         for file in ["plainix.nix", "flake.nix", "flake.lock", ".envrc"] {
@@ -417,7 +446,7 @@ mod tests {
         let directory = temporary_directory("existing");
         fs::write(directory.join("plainix.nix"), "original project\n").unwrap();
 
-        let error = initialize_with_lock(&directory, false, "x86_64-linux", &[], |_| {
+        let error = initialize_with_lock(&directory, false, &[], |_| {
             panic!("lock must not run when a project file already exists")
         })
         .unwrap_err();
@@ -435,7 +464,7 @@ mod tests {
         let directory = temporary_directory("envrc");
         fs::write(directory.join(".envrc"), "source_env custom.envrc\n").unwrap();
 
-        let result = initialize_with_lock(&directory, false, "x86_64-linux", &[], |path| {
+        let result = initialize_with_lock(&directory, false, &[], |path| {
             fs::write(path.join("flake.lock"), "{}\n").map_err(|error| error.to_string())
         })
         .unwrap();
@@ -468,7 +497,7 @@ mod tests {
         );
         fs::write(directory.join(".gitignore"), "/target\n").unwrap();
 
-        let result = initialize_with_lock(&directory, true, "x86_64-linux", &[], |path| {
+        let result = initialize_with_lock(&directory, true, &[], |path| {
             fs::write(path.join("flake.lock"), "{}\n").map_err(|error| error.to_string())
         })
         .unwrap();
@@ -532,10 +561,8 @@ mod tests {
         let path = directory.join(".gitignore");
         fs::write(&path, "/target\n").unwrap();
 
-        let error = initialize_with_lock(&directory, true, "x86_64-linux", &[], |_| {
-            Err("lock failed".to_owned())
-        })
-        .unwrap_err();
+        let error = initialize_with_lock(&directory, true, &[], |_| Err("lock failed".to_owned()))
+            .unwrap_err();
 
         assert_eq!(error, "lock failed");
         assert_eq!(fs::read_to_string(path).unwrap(), "/target\n");

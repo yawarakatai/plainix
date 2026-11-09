@@ -1,7 +1,7 @@
 {
   description = "Rust project environment with Plainix";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   inputs.plainix = {
     url = "path:../..";
     inputs.nixpkgs.follows = "nixpkgs";

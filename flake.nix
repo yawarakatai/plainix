@@ -1,7 +1,7 @@
 {
   description = "Plainix - share a reproducible project environment without learning flakes first";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
   outputs =
     { self, nixpkgs }:

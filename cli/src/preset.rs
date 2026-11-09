@@ -209,6 +209,14 @@ pub fn resolve(ids: &[String], system: &str) -> Result<Vec<Preset>, String> {
     Ok(selected)
 }
 
+pub fn shared_systems(presets: &[Preset]) -> Vec<&'static str> {
+    SUPPORTED_SYSTEMS
+        .iter()
+        .copied()
+        .filter(|system| presets.iter().all(|preset| preset.supports(system)))
+        .collect()
+}
+
 pub fn packages_for(presets: &[Preset]) -> Vec<&'static str> {
     let mut packages = Vec::new();
 

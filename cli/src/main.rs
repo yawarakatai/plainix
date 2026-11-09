@@ -107,7 +107,7 @@ fn run() -> Result<(), String> {
             generate::check_directory(&directory)?;
             let system = platform::current_system(std::env::consts::ARCH, std::env::consts::OS)?;
             let presets = choose_presets(mode, system)?;
-            let result = generate::initialize(&directory, system, &presets)?;
+            let result = generate::initialize(&directory, &presets)?;
             let tools = if result.presets.is_empty() {
                 "none".to_owned()
             } else {
@@ -125,7 +125,7 @@ fn run() -> Result<(), String> {
             };
 
             println!("Tools: {tools}");
-            println!("Platform: {}", result.system);
+            println!("Platforms: {}", result.systems.join(", "));
             println!("Packages: {packages}");
             println!();
             println!("Created plainix.nix");

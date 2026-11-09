@@ -135,7 +135,7 @@ Plainix generates this file so standard Nix commands can read `plainix.nix`:
 
 ```nix
 {
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   inputs.plainix = {
     url = "github:yawarakatai/plainix";
     inputs.nixpkgs.follows = "nixpkgs";
