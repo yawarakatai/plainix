@@ -40,6 +40,10 @@ expect_error() {
   grep -qF "Plainix: $2" <<<"$output" || fail "expected '$2' from: $1, got: $output"
 }
 
+echo "e2e: --version names the commit"
+"$plainix" --version | grep -qE '^plainix [0-9]{4}-[0-9]{2}-[0-9]{2} \([0-9a-f]{7}' ||
+  fail "unexpected version: $("$plainix" --version)"
+
 echo "e2e: every supported system evaluates"
 new_project shared --with rust \
   --system x86_64-linux --system aarch64-linux --system aarch64-darwin

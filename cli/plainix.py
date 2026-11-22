@@ -10,7 +10,6 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-VERSION = "0.4.0"
 NIXPKGS_INPUT = "github:NixOS/nixpkgs/nixpkgs-unstable"
 PLAINIX_INPUT = "github:yawarakatai/plainix"
 PACKAGE_SEARCH_URL = "https://search.nixos.org/packages?channel=unstable"
@@ -25,6 +24,14 @@ PRESETS = json.loads(Path(__file__).with_name("presets.json").read_text("utf-8")
 
 class PlainixError(Exception):
     pass
+
+
+def read_version():
+    # The Nix package writes this file; a source checkout has none.
+    try:
+        return Path(__file__).with_name("version").read_text("utf-8").strip()
+    except OSError:
+        return "dev"
 
 
 def current_system(machine, operating_system):
@@ -524,7 +531,7 @@ def build_parser():
         allow_abbrev=False,
     )
     parser.add_argument(
-        "-V", "--version", action="version", version=f"plainix {VERSION}"
+        "-V", "--version", action="version", version=f"plainix {read_version()}"
     )
     commands = parser.add_subparsers(dest="command")
 

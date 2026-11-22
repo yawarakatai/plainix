@@ -14,6 +14,15 @@
       forSystems = nixpkgs.lib.genAttrs systems;
       packageFor = system: self.packages.${system}.plainix;
       plainixLib = import ./lib;
+      # Derived from the commit rather than kept by hand, because releases are
+      # plain pushes to main and a hand-written number kept going stale.
+      version =
+        let
+          date = self.lastModifiedDate;
+        in
+        "${builtins.substring 0 4 date}-${builtins.substring 4 2 date}-${builtins.substring 6 2 date} (${
+          self.shortRev or self.dirtyShortRev or "unknown"
+        })";
       environment = plainixLib.project { inherit nixpkgs; } ./plainix.nix;
     in
     {
@@ -38,6 +47,7 @@
               ''
                 install -Dm444 ${./cli/plainix.py} $out/share/plainix/plainix.py
                 install -Dm444 ${./cli/presets.json} $out/share/plainix/presets.json
+                install -Dm444 ${builtins.toFile "plainix-version" version} $out/share/plainix/version
                 mkdir -p $out/bin
                 cat > $out/bin/plainix <<EOF
                 #!${pkgs.runtimeShell}
