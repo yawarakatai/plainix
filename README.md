@@ -28,7 +28,8 @@ Plainix creates:
 - `plainix.nix` — the shared tools and environment
 - `flake.nix` — compatibility with standard Nix commands
 - `flake.lock` — pinned versions for reproducibility
-- `.envrc` — optional automatic activation with direnv and nix-direnv
+- `.envrc` — optional automatic activation with direnv and nix-direnv,
+  reloading when `plainix.nix` changes
 
 Inside a Git repository, Plainix also adds `.direnv/` to `.gitignore` and marks
 the generated files as intent-to-add. This lets Nix see them without staging
@@ -50,16 +51,18 @@ direnv, review the generated files before allowing them.
 ## Choose project tools
 
 `plainix init` opens a searchable selection where Space selects any combination
-of tools and Enter continues. Presets are an onboarding convenience, not a
+of tools and Enter continues. It then asks which platforms to declare; Enter
+alone keeps only the current machine. Presets are an onboarding convenience, not a
 limit on what Plainix can manage. They are expanded into an ordinary package
 list in `plainix.nix`.
 
 For scripts or non-interactive use, repeat `--with` or explicitly select an
-empty environment:
+empty environment. These declare only the current machine unless `--system` is
+repeated:
 
 ```console
 nix run github:yawarakatai/plainix -- init --with godot --with blender
-nix run github:yawarakatai/plainix -- init --empty
+nix run github:yawarakatai/plainix -- init --empty --system x86_64-linux --system aarch64-darwin
 ```
 
 | Tool | `--with` name | Initial packages |
@@ -83,8 +86,9 @@ nix run github:yawarakatai/plainix -- init --empty
 | Zig | `zig` | Zig, ZLS |
 
 Supported platforms are `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin`.
-`plainix init` declares every platform the selected tools support. FreeCAD and
-KiCad are currently offered on Linux only.
+`plainix init` declares only the platforms you choose, so `plainix update` only
+checks what you use; add another to `systems` in `plainix.nix` when it is needed.
+FreeCAD and KiCad are currently offered on Linux only.
 
 ## Customize the environment
 

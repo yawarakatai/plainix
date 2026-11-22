@@ -41,7 +41,8 @@ expect_error() {
 }
 
 echo "e2e: every supported system evaluates"
-new_project shared --with rust
+new_project shared --with rust \
+  --system x86_64-linux --system aarch64-linux --system aarch64-darwin
 for target in x86_64-linux aarch64-linux aarch64-darwin; do
   nix eval --raw ".#devShells.$target.default.drvPath" >/dev/null 2>&1 ||
     fail "generated environment does not evaluate on $target"
@@ -70,19 +71,17 @@ expect_error '{ packages = [ "python3Packages" ]; }' '`python3Packages` is not a
 expect_error '{ packages = [ "hello-unfree" ]; }' '`hello-unfree` is unfree'
 expect_error '{ pakages = [ ]; }' '`plainix.nix` contains unknown field(s): pakages'
 
-echo "e2e: presets limit generated systems"
-if [[ "$system" == *-darwin ]]; then
-  mkdir "$work/linux-only"
-  cd "$work/linux-only"
-  if output=$("$plainix" init --with freecad 2>&1); then
-    fail "macOS accepted a Linux-only preset"
-  fi
-  grep -qF "is not available on" <<<"$output" || fail "unexpected refusal: $output"
-else
-  new_project linux-only --with freecad
-  if grep -q aarch64-darwin plainix.nix; then
-    fail "Linux-only preset declared aarch64-darwin"
-  fi
+echo "e2e: init declares only this machine by default"
+new_project default --empty
+grep -qF "\"$system\"" plainix.nix || fail "default did not declare $system"
+[ "$(grep -cE -- '-(linux|darwin)"' plainix.nix)" = 1 ] || fail "default declared other systems"
+
+echo "e2e: presets refuse systems they do not support"
+mkdir "$work/linux-only"
+cd "$work/linux-only"
+if output=$("$plainix" init --with freecad --system aarch64-darwin 2>&1); then
+  fail "a Linux-only preset accepted aarch64-darwin"
 fi
+grep -qF "is not available on" <<<"$output" || fail "unexpected refusal: $output"
 
 echo "e2e: passed"
